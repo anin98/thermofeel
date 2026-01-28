@@ -9,32 +9,36 @@
 
 # To run this code you need to use pip install thermofeel
 # import statements
+import datetime
+
 import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset  # , date2num, num2date
 
+from earthkit.meteo.solar import (
+    cos_solar_zenith_angle,
+    cos_solar_zenith_angle_integrated,
+)
+
 from thermofeel import (
+    approximate_dsrp,
     calculate_apparent_temperature,
     calculate_bgt,
-    calculate_cos_solar_zenith_angle,
-    calculate_cos_solar_zenith_angle_integrated,
     calculate_heat_index_adjusted,
     calculate_heat_index_simplified,
     calculate_humidex,
     calculate_mean_radiant_temperature,
     calculate_mrt_from_bgt,
-    calculate_net_effective_temperature,
+    calculate_normal_effective_temperature,
     calculate_relative_humidity_percent,
     calculate_saturation_vapour_pressure,
     calculate_utci,
     calculate_wbgt,
-    calculate_wbgts,
+    calculate_wbgt_simple,
     calculate_wbt,
     calculate_wind_chill,
-    kelvin_to_celsius,
 )
-from thermofeel.thermofeel import approximate_dsrp
 
 # read in two netcdf files containing all the variables
 # to calculate the thermal indexes
@@ -57,13 +61,13 @@ t2m = fh3.variables["t2m"][0]
 td = fh3.variables["d2m"][0]
 
 # calculate all indexes from thermofeel
-rhp = calculate_relative_humidity_percent(t2k=t2m, tdk=td)
-svp = calculate_saturation_vapour_pressure(tk=t2m)
-cosszainstant = calculate_cos_solar_zenith_angle(
-    h=6, lat=lat_mg, lon=lon_mg, y=2020, m=6, d=8
+rhp = calculate_relative_humidity_percent(t2_k=t2m, td_k=td)
+svp = calculate_saturation_vapour_pressure(t2_k=t2m)
+cosszainstant = cos_solar_zenith_angle(
+    datetime.datetime(2020, 6, 8, 6), lat_mg, lon_mg
 )
-cosszaintegrated = calculate_cos_solar_zenith_angle_integrated(
-    lat=lat_mg, lon=lon_mg, y=2020, m=6, d=8, h=6, tbegin=0, tend=6
+cosszaintegrated = cos_solar_zenith_angle_integrated(
+    datetime.datetime(2020, 6, 8, 0), datetime.datetime(2020, 6, 8, 6), lat_mg, lon_mg
 )
 
 approx_dsrp = approximate_dsrp(fdir=fdir, cossza=cosszainstant)
@@ -77,21 +81,22 @@ mrtinstant = calculate_mean_radiant_temperature(
     strr=strr,
     cossza=cosszainstant,
 )
+approx_dsrp_integrated = approximate_dsrp(fdir=fdir, cossza=cosszaintegrated)
 mrtintegrate = calculate_mean_radiant_temperature(
-    ssrd=ssrd, ssr=ssr, fdir=fdir, strd=strd, strr=strr, cossza=cosszaintegrated
+    ssrd=ssrd, ssr=ssr, dsrp=approx_dsrp_integrated, strd=strd, fdir=fdir, strr=strr, cossza=cosszaintegrated
 )
-utci = calculate_utci(t2_k=t2m, va_ms=windspeed, mrt_k=mrtintegrate, td_k=td)
-wbgts = calculate_wbgts(t2m=t2m)
-wbt = calculate_wbt(tc=kelvin_to_celsius(t2m), rh=rhp)
-bgt = calculate_bgt(t_k=t2m, mrt=mrtintegrate, va=windspeed)
-wbgt = calculate_wbgt(t_k=t2m, mrt=mrtintegrate, va=windspeed, td=td)
-mrtbg = calculate_mrt_from_bgt(t2m=t2m, bgt=bgt, va=windspeed)
-humidex = calculate_humidex(t2m=t2m, td=td)
-net = calculate_net_effective_temperature(t2m=t2m, va=windspeed, td=td)
-aptmp = calculate_apparent_temperature(t2m=t2m, va=windspeed)
-windchill = calculate_wind_chill(t2m=t2m, va=windspeed)
-hisimple = calculate_heat_index_simplified(t2m=t2m)
-hia = calculate_heat_index_adjusted(t2m=t2m, td=td)
+utci = calculate_utci(t2_k=t2m, va=windspeed, mrt=mrtintegrate, td_k=td)
+wbgts = calculate_wbgt_simple(t2_k=t2m, rh=rhp)
+wbt = calculate_wbt(t2_k=t2m, rh=rhp)
+bgt = calculate_bgt(t2_k=t2m, mrt=mrtintegrate, va=windspeed)
+wbgt = calculate_wbgt(t2_k=t2m, mrt=mrtintegrate, va=windspeed, td_k=td)
+mrtbg = calculate_mrt_from_bgt(t2_k=t2m, bgt_k=bgt, va=windspeed)
+humidex = calculate_humidex(t2_k=t2m, td_k=td)
+net = calculate_normal_effective_temperature(t2_k=t2m, va=windspeed, rh=rhp)
+aptmp = calculate_apparent_temperature(t2_k=t2m, va=windspeed, rh=rhp)
+windchill = calculate_wind_chill(t2_k=t2m, va=windspeed)
+hisimple = calculate_heat_index_simplified(t2_k=t2m, rh=rhp)
+hia = calculate_heat_index_adjusted(t2_k=t2m, td_k=td)
 
 # to plot a single figure the example is for humidex index
 fig = plt.figure()
